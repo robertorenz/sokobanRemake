@@ -19,7 +19,8 @@
   const STORAGE_ASK_VIEW = 'sokoban2.askView.v1';    // false once "don't ask again" is ticked
 
   const ANIM_MS   = 110;  // one walking step
-  const PUSH_MS   = 150;  // one pushing step (a little heavier)
+  const PUSH_MS   = 320;  // one pushing step: strain first, then the shove
+  const PUSH_STRAIN = 0.4; // first 40% of a push: the keeper braces and the crate only shivers
   const WALK_MS   = 110;  // per step when auto-walking
 
   const C = {
@@ -250,7 +251,8 @@
     game.player = { x: bx, y: by };
     game.moves--;
     facing = { dx: m.dx, dy: m.dy };
-    startAnim({ x: px, y: py }, game.player, boxFrom, boxTo);
+    pendingDir = null;
+    startAnim({ x: px, y: py }, game.player, boxFrom, boxTo, { strain: false });
     updateHud();
     return true;
   }
@@ -292,6 +294,7 @@
   let walkTimer = null;
 
   function cancelWalk() {
+    pendingDir = null;
     walkQueue = [];
     if (walkTimer) { clearTimeout(walkTimer); walkTimer = null; }
   }
@@ -349,6 +352,7 @@
 
   function walkTick() {
     walkTimer = null;
+    if (anim && anim.strain) { walkTimer = setTimeout(walkTick, 40); return; }
     const dir = walkQueue.shift();
     if (!dir) return;
     if (!step(dir)) { cancelWalk(); return; }
@@ -407,17 +411,27 @@
 
   let stepParity = 0;   // alternates each step so the feet take turns
 
-  function startAnim(pFrom, pTo, bFrom, bTo) {
+  function startAnim(pFrom, pTo, bFrom, bTo, { strain = true } = {}) {
     stepParity ^= 1;
     const push = !!(bFrom && bTo);
     anim = {
       start: performance.now(),
-      dur: push ? PUSH_MS : ANIM_MS,
+      dur: push && strain ? PUSH_MS : ANIM_MS,
       pFrom, pTo: { ...pTo }, bFrom, bTo,
       push,
+      strain: push && strain,
       parity: stepParity,
     };
     requestRender();
+  }
+
+  // A move requested while a shove is still playing waits for it to finish, so a
+  // held key gives a steady strain-push rhythm instead of skipping the animation.
+  let pendingDir = null;
+
+  function requestStep(dir) {
+    if (anim && anim.strain) { pendingDir = dir; return; }
+    step(dir);
   }
 
   function requestRender() {
@@ -434,7 +448,8 @@
       if (t >= 1) anim = null;
     }
     render(t);
-    if (anim) requestRender();
+    if (anim) { requestRender(); return; }
+    if (pendingDir) { const d = pendingDir; pendingDir = null; step(d); }
   }
 
   function easeOut(t) { return 1 - (1 - t) * (1 - t); }
@@ -445,19 +460,35 @@
     if (!L) return;
     const e = easeOut(t);
 
+    // pose: phase = walk cycle (0 -> 1 -> 0), shove = how far the arms reach,
+    // strain = effort (tremble, extra lean, sweat), jitter = signed tremble wave.
     let player = { x: game.player.x, y: game.player.y };
-    let pose = { phase: 0, parity: 0, push: false };   // phase: 0 -> 1 -> 0 over a step
+    let pose = { phase: 0, parity: 0, push: false, shove: 0, strain: 0, jitter: 0 };
     let movingBox = null;
     if (anim) {
+      let move = e, nudge = 0;
+      if (anim.strain) {
+        const S = PUSH_STRAIN;
+        move = t < S ? 0 : easeOut((t - S) / (1 - S));
+        const shove = t < S * 0.5 ? t / (S * 0.5) : (t > 0.85 ? (1 - t) / 0.15 : 1);
+        const strain = t < S ? Math.min(1, t / (S * 0.5)) : Math.max(0, 1 - (t - S) / 0.12);
+        const jitter = Math.sin(t * 40);
+        pose = { phase: 0, parity: anim.parity, push: true, shove, strain, jitter };
+        nudge = strain * 0.05 * (0.5 + 0.5 * jitter);       // the crate shivers before it gives
+      } else if (anim.push) {
+        pose = { phase: 0, parity: anim.parity, push: true, shove: Math.sin(Math.PI * t), strain: 0, jitter: 0 };
+      } else {
+        pose = { phase: Math.sin(Math.PI * t), parity: anim.parity, push: false, shove: 0, strain: 0, jitter: 0 };
+      }
       player = {
-        x: anim.pFrom.x + (anim.pTo.x - anim.pFrom.x) * e,
-        y: anim.pFrom.y + (anim.pTo.y - anim.pFrom.y) * e,
+        x: anim.pFrom.x + (anim.pTo.x - anim.pFrom.x) * move,
+        y: anim.pFrom.y + (anim.pTo.y - anim.pFrom.y) * move,
       };
-      pose = { phase: Math.sin(Math.PI * t), parity: anim.parity, push: anim.push };
       if (anim.push) {
+        const ddx = anim.bTo.x - anim.bFrom.x, ddy = anim.bTo.y - anim.bFrom.y;
         movingBox = {
-          x: anim.bFrom.x + (anim.bTo.x - anim.bFrom.x) * e,
-          y: anim.bFrom.y + (anim.bTo.y - anim.bFrom.y) * e,
+          x: anim.bFrom.x + ddx * (move + nudge),
+          y: anim.bFrom.y + ddy * (move + nudge),
           to: anim.bTo,
         };
       }
@@ -669,7 +700,7 @@
     if (dirName) {
       e.preventDefault();
       cancelWalk();
-      step(DIRS[dirName]);
+      requestStep(DIRS[dirName]);
       return;
     }
 
@@ -705,8 +736,8 @@
       return;
     }
     cancelWalk();
-    if (Math.abs(dx) > Math.abs(dy)) step(dx > 0 ? DIRS.right : DIRS.left);
-    else step(dy > 0 ? DIRS.down : DIRS.up);
+    if (Math.abs(dx) > Math.abs(dy)) requestStep(dx > 0 ? DIRS.right : DIRS.left);
+    else requestStep(dy > 0 ? DIRS.down : DIRS.up);
   });
   canvas.addEventListener('pointercancel', () => { pointerStart = null; });
 

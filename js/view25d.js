@@ -164,12 +164,11 @@
      * facing down shows their face, left/right show a profile.
      */
     function drawKeeper(x, y, facing, pose) {
-      const gx = (x + 0.5) * W;
-      const gy = originY + (y + 0.74) * D;      // where the feet touch the floor
-      const { phase, parity, push } = pose;
+      const { phase, parity, push, shove = 0, strain = 0, jitter = 0 } = pose;
       const swing = push ? 0 : phase * (parity ? 1 : -1);
-      const shove = push ? phase : 0;
       const s = W * 1.08;
+      const gx = (x + 0.5) * W + jitter * strain * s * 0.02;   // trembles while straining
+      const gy = originY + (y + 0.74) * D;                      // where the feet touch the floor
       const fx = facing.dx, fy = facing.dy;
       const profile = fx !== 0;
       const toward = fy > 0;
@@ -187,7 +186,8 @@
       const rf = { x: gx + lat.x - dir.x * stride, y: gy + lat.y - dir.y * stride };
       if (push) {
         const bf = parity ? lf : rf;
-        bf.x -= dir.x * shove * s * 0.1; bf.y -= dir.y * shove * s * 0.1;
+        const dig = (shove * 0.1 + strain * 0.05) * s;
+        bf.x -= dir.x * dig; bf.y -= dir.y * dig;
       }
       const hipY = gy - s * 0.25 + bob;
       const leg = foot => {
@@ -207,8 +207,8 @@
       if (lf.y <= rf.y) { leg(lf); leg(rf); } else { leg(rf); leg(lf); }
 
       // Torso, leaning toward the crate at the shoulders while pushing
-      const leanX = fx * shove * s * 0.08;
-      const leanY = fy * shove * s * 0.03;
+      const leanX = fx * (shove * 0.08 + strain * 0.05) * s;
+      const leanY = fy * (shove * 0.03 + strain * 0.02) * s;
       const shY = gy - s * 0.52 + bob + leanY;
       const torso = () => {
         ctx.beginPath();
@@ -299,6 +299,18 @@
       ctx.fillStyle = C.hat; ctx.fill(); ctx.stroke();
       ctx.beginPath(); ctx.arc(hx - s * 0.03, hy - s * 0.05 + domeDrop, s * 0.05, Math.PI * 1.1, Math.PI * 1.6);
       ctx.lineWidth = Math.max(1, s * 0.02); ctx.strokeStyle = C.hatRidge; ctx.stroke();
+
+      // Effort: sweat drops fly off while straining
+      if (strain > 0.3) {
+        const k = (strain - 0.3) / 0.7;
+        ctx.fillStyle = C.goalLight;
+        for (const side of [-1, 1]) {
+          const dx = hx + side * (s * 0.17 + k * s * 0.06), dy = hy - s * 0.02 - k * s * 0.05;
+          ctx.beginPath();
+          ctx.ellipse(dx, dy, s * 0.028, s * 0.042, side * 0.5, 0, TAU);
+          ctx.fill();
+        }
+      }
     }
 
     // ------------------------------------------------------------------ frame

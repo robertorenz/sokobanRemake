@@ -159,9 +159,8 @@
      */
     function drawPlayer(x, y, pose) {
       const t = tile;
-      const { phase, parity, push } = pose;
+      const { phase, parity, push, shove = 0, strain = 0, jitter = 0 } = pose;
       const swing = push ? 0 : phase * (parity ? 1 : -1);
-      const shove = push ? phase : 0;
       const angle = Math.atan2(facing.dx, -facing.dy);
 
       ctx.save();
@@ -174,14 +173,15 @@
       ctx.fillStyle = 'rgba(15, 25, 35, 0.28)';
       ctx.fill();
 
-      // Lean into the crate while pushing; tiny bob while walking
-      ctx.translate(0, -shove * t * 0.06 - Math.abs(swing) * t * 0.015);
+      // Lean into the crate while pushing (more while straining, with a tremble);
+      // tiny bob while walking
+      ctx.translate(jitter * strain * t * 0.02, -shove * t * 0.06 - strain * t * 0.03 - Math.abs(swing) * t * 0.015);
 
       // Boots. Walking: alternate forward/back. Pushing: back foot digs in.
       const footY = t * 0.07;
       const stride = swing * t * 0.14;
       let leftY = footY - stride, rightY = footY + stride;
-      if (push) { if (parity) leftY += shove * t * 0.13; else rightY += shove * t * 0.13; }
+      if (push) { const dig = (shove * 0.13 + strain * 0.06) * t; if (parity) leftY += dig; else rightY += dig; }
       drawBoot(-t * 0.13, leftY, t);
       drawBoot(t * 0.13, rightY, t);
 
@@ -204,7 +204,7 @@
       // Arms and gloves
       const shoulderX = t * 0.25, shoulderY = 0;
       const handBaseY = -t * 0.17;
-      const handX = t * (0.26 - shove * 0.09);
+      const handX = t * (0.26 - shove * 0.09 - strain * 0.02);
       const leftHandY = handBaseY + swing * t * 0.09 - shove * t * 0.25;
       const rightHandY = handBaseY - swing * t * 0.09 - shove * t * 0.25;
       ctx.lineCap = 'round';
@@ -255,6 +255,18 @@
       ctx.globalAlpha = 0.6;
       ctx.stroke();
       ctx.globalAlpha = 1;
+
+      // Effort: a couple of sweat drops fly off while straining
+      if (strain > 0.3) {
+        const k = (strain - 0.3) / 0.7;
+        ctx.fillStyle = C.goalLight;
+        for (const side of [-1, 1]) {
+          const dx = side * (t * 0.24 + k * t * 0.07), dy = headY - t * 0.05 - k * t * 0.05;
+          ctx.beginPath();
+          ctx.ellipse(dx, dy, t * 0.03, t * 0.045, side * 0.5, 0, TAU);
+          ctx.fill();
+        }
+      }
 
       ctx.restore();
     }

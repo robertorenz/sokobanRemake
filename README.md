@@ -117,8 +117,11 @@ docs/screenshot.png, docs/screenshot-25d.png
   with `layout(cols, rows, availW, availH)`, `render(scene)` and `cellAt(px, py)`, so adding
   another look is a matter of writing one more file.
 - **The keeper** - a warehouse worker (hard hat, shoulders, gloves, boots). Each step runs a short
-  animation: walking alternates the feet and swings the arms; pushing extends the arms onto the
-  crate, leans the body in and plants the back foot. Undo plays the same animation in reverse.
+  animation: walking alternates the feet and swings the arms. A push has two phases: first the
+  keeper braces against the crate - leaning in, back foot digging in, trembling, sweat flying,
+  the crate shivering in place - then it gives way and both slide to the next cell. A key pressed
+  during a shove is buffered until it finishes, so a held key gives a steady push rhythm. Undo is
+  a plain slide back.
   The 2D view draws them from directly above and rotates to the facing direction; the 2.5D view
   draws them standing up - back view walking up, face on walking down, profile left and right.
 - **2.5D view** - a "3/4" projection: cells are slightly foreshortened (depth 0.78 x width), walls
