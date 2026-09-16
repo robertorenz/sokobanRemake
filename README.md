@@ -7,7 +7,9 @@ Plain HTML5 Canvas + vanilla JavaScript - no framework, no build step, no depend
 
 ## Play
 
-Open `index.html` in any modern browser, or serve the folder with any static file server:
+**Online: https://robertorenz.github.io/sokobanRemake/**
+
+Or open `index.html` in any modern browser, or serve the folder with any static file server:
 
 ```sh
 npx serve .            # or: python -m http.server
