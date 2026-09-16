@@ -87,23 +87,35 @@
           <span class="view-card-title">Classic 2D</span>
           <span class="view-card-sub">Top-down, exactly like the original. Arrow keys map straight to the grid.</span>
         </button>
-        <button class="view-card" id="pick-iso" data-pick-view="iso" type="button">
+        <button class="view-card" id="pick-depth" data-pick-view="depth" type="button">
           <svg viewBox="0 0 160 100" aria-hidden="true">
             <rect width="160" height="100" fill="#0F1923" rx="6"/>
-            <g stroke="#0B131C" stroke-width="0.8" stroke-linejoin="round">
-              <path d="M80 26l40 20-40 20-40-20z" fill="#E2E8F0"/>
-              <path d="M40 46l40 20v14l-40-20z" fill="#1B2A4A"/><path d="M80 66l40-20v14l-40 20z" fill="#131F38"/>
-              <path d="M40 32l40-20 40 20-40 20z" fill="#2E4470"/><path d="M40 32l40 20v14l-40-20z" fill="#1B2A4A" opacity="0"/>
-            </g>
-            <g stroke="#92400E" stroke-width="0.8" stroke-linejoin="round">
-              <path d="M96 40l12 6-12 6-12-6z" fill="#F59E0B"/><path d="M84 46l12 6v9l-12-6z" fill="#D97706"/><path d="M96 52l12-6v9l-12 6z" fill="#B45309"/>
-            </g>
-            <ellipse cx="62" cy="58" rx="6" ry="3" fill="rgba(15,25,35,0.3)"/>
-            <path d="M58 44h8v12h-8z" fill="#0E7490" stroke="#164E63"/><line x1="59" y1="56" x2="59" y2="60" stroke="#164E63" stroke-width="2"/><line x1="65" y1="56" x2="65" y2="60" stroke="#164E63" stroke-width="2"/>
-            <circle cx="62" cy="40" r="4" fill="#EAC4A3"/><ellipse cx="62" cy="38.5" rx="5.5" ry="1.8" fill="#F1F5F9" stroke="#94A3B8" stroke-width="0.6"/><path d="M57.5 38.5a4.5 4.5 0 0 1 9 0z" fill="#F1F5F9" stroke="#94A3B8" stroke-width="0.6"/>
+            <!-- back wall: tall, top face + brick front -->
+            <rect x="10" y="12" width="140" height="14" fill="#2E4470" stroke="#0B131C" stroke-width="0.8"/>
+            <rect x="10" y="26" width="140" height="12" fill="#1B2A4A" stroke="#0B131C" stroke-width="0.8"/>
+            <line x1="10" y1="32" x2="150" y2="32" stroke="#0B131C" stroke-width="0.8"/>
+            <!-- side walls -->
+            <rect x="10" y="26" width="20" height="46" fill="#2E4470" stroke="#0B131C" stroke-width="0.8"/>
+            <rect x="130" y="26" width="20" height="46" fill="#2E4470" stroke="#0B131C" stroke-width="0.8"/>
+            <!-- floor -->
+            <rect x="30" y="38" width="100" height="34" fill="#E2E8F0"/>
+            <line x1="50" y1="38" x2="50" y2="72" stroke="#CBD5E1"/><line x1="70" y1="38" x2="70" y2="72" stroke="#CBD5E1"/><line x1="90" y1="38" x2="90" y2="72" stroke="#CBD5E1"/><line x1="110" y1="38" x2="110" y2="72" stroke="#CBD5E1"/><line x1="30" y1="55" x2="130" y2="55" stroke="#CBD5E1"/>
+            <ellipse cx="120" cy="64" rx="5" ry="4" fill="none" stroke="#0891B2" stroke-width="2"/>
+            <!-- front wall: low curb -->
+            <rect x="10" y="68" width="140" height="10" fill="#2E4470" stroke="#0B131C" stroke-width="0.8"/>
+            <rect x="10" y="78" width="140" height="6" fill="#1B2A4A" stroke="#0B131C" stroke-width="0.8"/>
+            <!-- crate: lid + front -->
+            <rect x="73" y="48" width="16" height="12" fill="#F59E0B" stroke="#92400E" stroke-width="1"/><path d="M76 51l10 6M86 51l-10 6" stroke="#92400E" stroke-width="1.2"/>
+            <rect x="73" y="60" width="16" height="9" fill="#D97706" stroke="#92400E" stroke-width="1"/>
+            <!-- keeper: standing, facing the viewer -->
+            <ellipse cx="55" cy="68" rx="6" ry="2" fill="rgba(15,25,35,0.3)"/>
+            <line x1="52" y1="60" x2="52" y2="67" stroke="#164E63" stroke-width="2.2"/><line x1="58" y1="60" x2="58" y2="67" stroke="#164E63" stroke-width="2.2"/>
+            <path d="M50 61h10l1-11H49z" fill="#0E7490" stroke="#164E63" stroke-width="0.8"/>
+            <line x1="48" y1="52" x2="47" y2="59" stroke="#0E7490" stroke-width="2.2" stroke-linecap="round"/><line x1="62" y1="52" x2="63" y2="59" stroke="#0E7490" stroke-width="2.2" stroke-linecap="round"/>
+            <circle cx="55" cy="45" r="4" fill="#EAC4A3"/><ellipse cx="55" cy="43.5" rx="5.5" ry="1.8" fill="#F1F5F9" stroke="#94A3B8" stroke-width="0.6"/><path d="M50.5 43.5a4.5 4.5 0 0 1 9 0z" fill="#F1F5F9" stroke="#94A3B8" stroke-width="0.6"/>
           </svg>
-          <span class="view-card-title">2.5D Isometric</span>
-          <span class="view-card-sub">Walls with height, cube crates and a standing keeper. The map is turned 45&deg;.</span>
+          <span class="view-card-title">2.5D</span>
+          <span class="view-card-sub">Tilted top-down: walls with height, box crates and a standing keeper. Same controls as 2D.</span>
         </button>
       </div>
       <div class="modal-footer modal-footer-start">
@@ -181,10 +193,10 @@
           <tr><th>Restart level</th><td><kbd>R</kbd></td></tr>
           <tr><th>Next / previous</th><td><kbd>N</kbd> / <kbd>P</kbd></td></tr>
           <tr><th>Level picker</th><td><kbd>L</kbd></td></tr>
-          <tr><th>Switch view</th><td><kbd>V</kbd> toggles classic 2D and 2.5D isometric</td></tr>
+          <tr><th>Switch view</th><td><kbd>V</kbd> toggles classic 2D and 2.5D</td></tr>
           <tr><th>Touch</th><td>Swipe in the direction you want to move</td></tr>
         </table>
-        <p>In the 2.5D view the map is turned 45&deg;: <kbd>&uarr;</kbd> walks up-right, <kbd>&rarr;</kbd> down-right, <kbd>&darr;</kbd> down-left and <kbd>&larr;</kbd> up-left. The compass in the corner of the board shows the same thing.</p>
+        <p>The 2.5D view keeps the same grid and controls as 2D &ndash; the camera is just tilted forward so walls, crates and the keeper have height.</p>
         <p><button class="btn" id="btn-ask-view" type="button">Ask which view to use at start-up again</button></p>
         <p class="help-credit">Levels 1&ndash;50 are the original Sokoban levels by Thinking Rabbit (1982&ndash;84); 51&ndash;90 are the classic "Extra" set. Your progress is saved in this browser.</p>
       </div>
@@ -193,7 +205,7 @@
 
   <script src="js/levels.js"></script>
   <script src="js/view2d.js"></script>
-  <script src="js/viewiso.js"></script>
+  <script src="js/view25d.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>

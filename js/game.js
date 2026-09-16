@@ -15,7 +15,7 @@
 
   const STORAGE_PROGRESS = 'sokoban2.progress.v1';
   const STORAGE_CURRENT  = 'sokoban2.current.v1';
-  const STORAGE_VIEW     = 'sokoban2.view.v1';       // 'flat' | 'iso'
+  const STORAGE_VIEW     = 'sokoban2.view.v1';       // 'flat' | 'depth'
   const STORAGE_ASK_VIEW = 'sokoban2.askView.v1';    // false once "don't ask again" is ticked
 
   const ANIM_MS   = 110;  // one walking step
@@ -357,17 +357,17 @@
 
   // ---------------------------------------------------------------------------
   // Rendering. The drawing itself lives in js/view2d.js (classic top-down) and
-  // js/viewiso.js (2.5D isometric); both expose layout / render / cellAt.
+  // js/view25d.js (2.5D tilted top-down); both expose layout / render / cellAt.
   // ---------------------------------------------------------------------------
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
   const boardWrap = document.getElementById('board-wrap');
 
   const VIEWS = {
-    flat: window.SokobanViews.flat(ctx, C),
-    iso:  window.SokobanViews.iso(ctx, C),
+    flat:  window.SokobanViews.flat(ctx, C),
+    depth: window.SokobanViews.depth(ctx, C),
   };
-  const VIEW_LABELS = { flat: '2D', iso: '2.5D' };
+  const VIEW_LABELS = { flat: '2D', depth: '2.5D' };
   let view = VIEWS.flat;
   let anim = null;     // { start, dur, pFrom, pTo, bFrom, bTo, push, parity }
   let facing = DIRS.down;
@@ -383,7 +383,7 @@
   }
 
   function toggleView() {
-    setView(view.id === 'flat' ? 'iso' : 'flat');
+    setView(view.id === 'flat' ? 'depth' : 'flat');
   }
 
   function resize() {
@@ -513,7 +513,7 @@
   function updateViewButton() {
     const b = $('btn-view');
     b.textContent = 'View: ' + VIEW_LABELS[view.id];
-    b.title = `Switch to ${VIEW_LABELS[view.id === 'flat' ? 'iso' : 'flat']} view (V)`;
+    b.title = `Switch to ${VIEW_LABELS[view.id === 'flat' ? 'depth' : 'flat']} view (V)`;
   }
 
   function showStartChooser() {
@@ -776,7 +776,8 @@
       const idx = SETS.findIndex(s => s.id === cur.set);
       if (idx >= 0 && SETS[idx].parsed[cur.level]) { si = idx; li = cur.level; }
     }
-    const savedView = loadJSON(STORAGE_VIEW, 'flat');
+    let savedView = loadJSON(STORAGE_VIEW, 'flat');
+    if (savedView === 'iso') savedView = 'depth';   // the 2.5D view used to be isometric
     view = VIEWS[savedView] || VIEWS.flat;
     document.body.dataset.view = view.id;
     updateViewButton();

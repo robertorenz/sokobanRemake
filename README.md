@@ -3,11 +3,11 @@
 A faithful remake of the classic 1982 warehouse-keeper puzzle, with the original 90 levels.
 Plain HTML5 Canvas + vanilla JavaScript - no framework, no build step, no dependencies.
 
-Play it in classic top-down 2D or in a 2.5D isometric view - same levels, same progress.
+Play it in classic top-down 2D or in a 2.5D view - same levels, same progress, same controls.
 
-| Classic 2D | 2.5D isometric |
+| Classic 2D | 2.5D |
 | --- | --- |
-| ![Sokoban level 1, 2D](docs/screenshot.png) | ![Sokoban level 1, 2.5D](docs/screenshot-iso.png) |
+| ![Sokoban level 1, 2D](docs/screenshot.png) | ![Sokoban level 1, 2.5D](docs/screenshot-25d.png) |
 
 ## Play
 
@@ -39,9 +39,9 @@ Your progress (solved levels and best move/push counts) is saved in the browser'
 ### 2D or 2.5D?
 
 The game asks which view you want when it starts (tick "don't ask again" to skip that in future;
-the help dialog can bring the question back). In the 2.5D view the map is turned 45 degrees, so
-`↑` walks up-right, `→` down-right, `↓` down-left and `←` up-left - the compass in the corner of
-the board shows the same thing. Click-to-walk and swipes work in both views.
+the help dialog can bring the question back). The 2.5D view keeps the grid straight - up is up,
+right is right - and just tilts the camera forward so walls, crates and the keeper have height.
+Click-to-walk and swipes work in both views.
 
 ## Rules
 
@@ -94,10 +94,10 @@ index.html            page shell and modal dialogs
 css/style.css         styling (navy / teal palette)
 js/game.js            engine, input, UI and the per-frame scene
 js/view2d.js          classic top-down renderer
-js/viewiso.js         2.5D isometric renderer
+js/view25d.js         2.5D tilted top-down renderer
 js/levels.js          generated level data (90 levels)
 tools/fetch-levels.mjs  regenerates js/levels.js from xsokoban
-docs/screenshot.png, docs/screenshot-iso.png
+docs/screenshot.png, docs/screenshot-25d.png
 ```
 
 ### How it works
@@ -120,11 +120,12 @@ docs/screenshot.png, docs/screenshot-iso.png
   animation: walking alternates the feet and swings the arms; pushing extends the arms onto the
   crate, leans the body in and plants the back foot. Undo plays the same animation in reverse.
   The 2D view draws them from directly above and rotates to the facing direction; the 2.5D view
-  draws them standing up, facing one of the four diagonal screen directions.
-- **2.5D view** - a 2:1 isometric projection. Walls are extruded brick prisms, crates are cubes,
-  and everything is drawn back-to-front by depth (x + y). Walls that would hide playable floor
-  behind them are drawn as low curbs ("cutaway"), so the whole board stays visible while the
-  back walls keep their full height.
+  draws them standing up - back view walking up, face on walking down, profile left and right.
+- **2.5D view** - a "3/4" projection: cells are slightly foreshortened (depth 0.78 x width), walls
+  and crates are extruded upward with a visible brick / plank front face, and rows are drawn top
+  to bottom so nearer things overlap farther ones. Walls that would hide the floor cell behind
+  them are drawn as low curbs ("cutaway"), so the whole board stays visible while the back and
+  side walls keep their full height.
 
 ## License
 
