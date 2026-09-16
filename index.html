@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Sokoban</title>
+  <meta name="description" content="A faithful remake of the classic warehouse-keeper puzzle with the original 90 levels.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='26' height='26' rx='4' fill='%23D97706' stroke='%2392400E' stroke-width='2'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='%2392400E' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="3" y="3" width="26" height="26" rx="4" fill="#D97706" stroke="#92400E" stroke-width="2"/>
+        <path d="M8 8l16 16M24 8L8 24" stroke="#92400E" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <h1>Sokoban</h1>
+        <p class="tagline">The classic warehouse puzzle &middot; original 90 levels</p>
+      </div>
+    </div>
+
+    <div class="stats" aria-live="polite">
+      <div class="stat">
+        <span class="stat-label">Level</span>
+        <span class="stat-value" id="stat-level">1</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Moves</span>
+        <span class="stat-value" id="stat-moves">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Pushes</span>
+        <span class="stat-value" id="stat-pushes">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Best</span>
+        <span class="stat-value" id="stat-best">&ndash;</span>
+      </div>
+    </div>
+
+    <nav class="toolbar" aria-label="Game controls">
+      <button class="btn" id="btn-prev" title="Previous level (P)">&#9664;</button>
+      <button class="btn" id="btn-next" title="Next level (N)">&#9654;</button>
+      <span class="toolbar-sep"></span>
+      <button class="btn" id="btn-undo" title="Undo (Z)">Undo</button>
+      <button class="btn" id="btn-redo" title="Redo (Y)">Redo</button>
+      <button class="btn" id="btn-restart" title="Restart level (R)">Restart</button>
+      <span class="toolbar-sep"></span>
+      <button class="btn btn-accent" id="btn-levels" title="Choose level (L)">Levels</button>
+      <button class="btn" id="btn-help" title="Help (?)">?</button>
+    </nav>
+  </header>
+
+  <main class="stage">
+    <div class="board-wrap" id="board-wrap">
+      <canvas id="board" tabindex="0" aria-label="Sokoban board"></canvas>
+    </div>
+    <p class="hint">
+      <kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&rarr;</kbd><kbd>&darr;</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move &middot;
+      <kbd>Z</kbd> undo &middot; <kbd>Y</kbd> redo &middot; <kbd>R</kbd> restart &middot;
+      click a floor tile to walk there &middot; swipe on touch screens
+    </p>
+  </main>
+
+  <!-- Level picker -->
+  <div class="modal-backdrop" id="modal-levels" hidden>
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="levels-title">
+      <div class="modal-header">
+        <h2 id="levels-title">Choose a level</h2>
+        <div class="modal-header-right">
+          <select id="set-select" class="select" aria-label="Level set"></select>
+          <button class="btn-close" data-close aria-label="Close">&times;</button>
+        </div>
+      </div>
+      <p class="modal-sub" id="set-description"></p>
+      <div class="level-grid" id="level-grid"></div>
+      <div class="modal-footer">
+        <span class="progress-text" id="progress-text"></span>
+        <button class="btn btn-danger-outline" id="btn-reset-progress">Reset progress</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Level solved -->
+  <div class="modal-backdrop" id="modal-win" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="win-title">
+      <div class="modal-header">
+        <h2 id="win-title">Level solved!</h2>
+        <button class="btn-close" data-close aria-label="Close">&times;</button>
+      </div>
+      <div class="win-body">
+        <div class="win-badge" aria-hidden="true">&#10003;</div>
+        <p class="win-line" id="win-summary"></p>
+        <p class="win-best" id="win-best"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="btn-win-replay">Play again</button>
+        <button class="btn btn-accent" id="btn-win-next">Next level &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm dialog (generic) -->
+  <div class="modal-backdrop" id="modal-confirm" hidden>
+    <div class="modal modal-narrow" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal-header">
+        <h2 id="confirm-title">Are you sure?</h2>
+        <button class="btn-close" data-close aria-label="Close">&times;</button>
+      </div>
+      <p class="modal-text" id="confirm-text"></p>
+      <div class="modal-footer">
+        <button class="btn" id="btn-confirm-cancel">Cancel</button>
+        <button class="btn btn-danger" id="btn-confirm-ok">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help -->
+  <div class="modal-backdrop" id="modal-help" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="modal-header">
+        <h2 id="help-title">How to play</h2>
+        <button class="btn-close" data-close aria-label="Close">&times;</button>
+      </div>
+      <div class="help-body">
+        <p>You are the warehouse keeper. Push every crate onto a goal marker. You can only <strong>push</strong> crates &ndash; never pull &ndash; and only one at a time. Crates turn green when they sit on a goal.</p>
+        <table class="keys">
+          <tr><th>Move</th><td><kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&rarr;</kbd><kbd>&darr;</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td></tr>
+          <tr><th>Walk to tile</th><td>Click or tap any reachable floor tile</td></tr>
+          <tr><th>Undo / Redo</th><td><kbd>Z</kbd> / <kbd>Y</kbd> (also <kbd>U</kbd>, <kbd>Backspace</kbd>)</td></tr>
+          <tr><th>Restart level</th><td><kbd>R</kbd></td></tr>
+          <tr><th>Next / previous</th><td><kbd>N</kbd> / <kbd>P</kbd></td></tr>
+          <tr><th>Level picker</th><td><kbd>L</kbd></td></tr>
+          <tr><th>Touch</th><td>Swipe in the direction you want to move</td></tr>
+        </table>
+        <p class="help-credit">Levels 1&ndash;50 are the original Sokoban levels by Thinking Rabbit (1982&ndash;84); 51&ndash;90 are the classic "Extra" set. Your progress is saved in this browser.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/levels.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

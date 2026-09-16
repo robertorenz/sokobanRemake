@@ -1,0 +1,9 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Node (only used by tools/fetch-levels.mjs, no dependencies)
+node_modules/
