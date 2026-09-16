@@ -385,6 +385,74 @@ kbd {
   color: var(--text-2);
 }
 
+/* Start-up view chooser */
+.view-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 18px 22px 6px;
+}
+
+.view-card {
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  transition: transform 0.1s, border-color 0.1s, box-shadow 0.1s;
+}
+
+.view-card svg {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  display: block;
+}
+
+.view-card:hover,
+.view-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px rgba(8, 145, 178, 0.22);
+  outline: none;
+}
+
+.view-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.view-card-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+.modal-footer-start { justify-content: flex-start; }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+@media (max-width: 560px) {
+  .view-cards { grid-template-columns: 1fr; }
+}
+
 /* Win modal */
 .win-body {
   text-align: center;

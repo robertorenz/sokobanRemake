@@ -49,6 +49,7 @@
       <button class="btn" id="btn-restart" title="Restart level (R)">Restart</button>
       <span class="toolbar-sep"></span>
       <button class="btn btn-accent" id="btn-levels" title="Choose level (L)">Levels</button>
+      <button class="btn" id="btn-view" title="Switch view (V)">View: 2D</button>
       <button class="btn" id="btn-help" title="Help (?)">?</button>
     </nav>
   </header>
@@ -63,6 +64,53 @@
       click a floor tile to walk there &middot; swipe on touch screens
     </p>
   </main>
+
+  <!-- Start-up: choose a view -->
+  <div class="modal-backdrop" id="modal-start" hidden>
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="start-title">
+      <div class="modal-header">
+        <h2 id="start-title">Which version would you like to play?</h2>
+        <button class="btn-close" data-close aria-label="Close">&times;</button>
+      </div>
+      <p class="modal-sub">Same levels, same progress &ndash; only the look changes. You can switch any time with <kbd>V</kbd>.</p>
+      <div class="view-cards">
+        <button class="view-card" id="pick-flat" data-pick-view="flat" type="button">
+          <svg viewBox="0 0 160 100" aria-hidden="true">
+            <rect width="160" height="100" fill="#0F1923" rx="6"/>
+            <g fill="#1B2A4A"><rect x="10" y="10" width="140" height="20"/><rect x="10" y="70" width="140" height="20"/><rect x="10" y="30" width="20" height="40"/><rect x="130" y="30" width="20" height="40"/></g>
+            <rect x="30" y="30" width="100" height="40" fill="#E2E8F0"/>
+            <line x1="50" y1="30" x2="50" y2="70" stroke="#CBD5E1"/><line x1="70" y1="30" x2="70" y2="70" stroke="#CBD5E1"/><line x1="90" y1="30" x2="90" y2="70" stroke="#CBD5E1"/><line x1="110" y1="30" x2="110" y2="70" stroke="#CBD5E1"/><line x1="30" y1="50" x2="130" y2="50" stroke="#CBD5E1"/>
+            <circle cx="120" cy="60" r="5" fill="none" stroke="#0891B2" stroke-width="2"/>
+            <rect x="72" y="52" width="16" height="16" rx="2" fill="#D97706" stroke="#92400E" stroke-width="1.5"/><path d="M75 55l10 10M85 55l-10 10" stroke="#92400E" stroke-width="1.5"/>
+            <ellipse cx="60" cy="60" rx="7" ry="5" fill="#0E7490"/><circle cx="60" cy="59" r="4.5" fill="#F1F5F9" stroke="#94A3B8"/>
+          </svg>
+          <span class="view-card-title">Classic 2D</span>
+          <span class="view-card-sub">Top-down, exactly like the original. Arrow keys map straight to the grid.</span>
+        </button>
+        <button class="view-card" id="pick-iso" data-pick-view="iso" type="button">
+          <svg viewBox="0 0 160 100" aria-hidden="true">
+            <rect width="160" height="100" fill="#0F1923" rx="6"/>
+            <g stroke="#0B131C" stroke-width="0.8" stroke-linejoin="round">
+              <path d="M80 26l40 20-40 20-40-20z" fill="#E2E8F0"/>
+              <path d="M40 46l40 20v14l-40-20z" fill="#1B2A4A"/><path d="M80 66l40-20v14l-40 20z" fill="#131F38"/>
+              <path d="M40 32l40-20 40 20-40 20z" fill="#2E4470"/><path d="M40 32l40 20v14l-40-20z" fill="#1B2A4A" opacity="0"/>
+            </g>
+            <g stroke="#92400E" stroke-width="0.8" stroke-linejoin="round">
+              <path d="M96 40l12 6-12 6-12-6z" fill="#F59E0B"/><path d="M84 46l12 6v9l-12-6z" fill="#D97706"/><path d="M96 52l12-6v9l-12 6z" fill="#B45309"/>
+            </g>
+            <ellipse cx="62" cy="58" rx="6" ry="3" fill="rgba(15,25,35,0.3)"/>
+            <path d="M58 44h8v12h-8z" fill="#0E7490" stroke="#164E63"/><line x1="59" y1="56" x2="59" y2="60" stroke="#164E63" stroke-width="2"/><line x1="65" y1="56" x2="65" y2="60" stroke="#164E63" stroke-width="2"/>
+            <circle cx="62" cy="40" r="4" fill="#EAC4A3"/><ellipse cx="62" cy="38.5" rx="5.5" ry="1.8" fill="#F1F5F9" stroke="#94A3B8" stroke-width="0.6"/><path d="M57.5 38.5a4.5 4.5 0 0 1 9 0z" fill="#F1F5F9" stroke="#94A3B8" stroke-width="0.6"/>
+          </svg>
+          <span class="view-card-title">2.5D Isometric</span>
+          <span class="view-card-sub">Walls with height, cube crates and a standing keeper. The map is turned 45&deg;.</span>
+        </button>
+      </div>
+      <div class="modal-footer modal-footer-start">
+        <label class="check"><input type="checkbox" id="start-remember"> Remember my choice and don't ask again</label>
+      </div>
+    </div>
+  </div>
 
   <!-- Level picker -->
   <div class="modal-backdrop" id="modal-levels" hidden>
@@ -133,14 +181,19 @@
           <tr><th>Restart level</th><td><kbd>R</kbd></td></tr>
           <tr><th>Next / previous</th><td><kbd>N</kbd> / <kbd>P</kbd></td></tr>
           <tr><th>Level picker</th><td><kbd>L</kbd></td></tr>
+          <tr><th>Switch view</th><td><kbd>V</kbd> toggles classic 2D and 2.5D isometric</td></tr>
           <tr><th>Touch</th><td>Swipe in the direction you want to move</td></tr>
         </table>
+        <p>In the 2.5D view the map is turned 45&deg;: <kbd>&uarr;</kbd> walks up-right, <kbd>&rarr;</kbd> down-right, <kbd>&darr;</kbd> down-left and <kbd>&larr;</kbd> up-left. The compass in the corner of the board shows the same thing.</p>
+        <p><button class="btn" id="btn-ask-view" type="button">Ask which view to use at start-up again</button></p>
         <p class="help-credit">Levels 1&ndash;50 are the original Sokoban levels by Thinking Rabbit (1982&ndash;84); 51&ndash;90 are the classic "Extra" set. Your progress is saved in this browser.</p>
       </div>
     </div>
   </div>
 
   <script src="js/levels.js"></script>
+  <script src="js/view2d.js"></script>
+  <script src="js/viewiso.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>

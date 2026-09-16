@@ -3,7 +3,11 @@
 A faithful remake of the classic 1982 warehouse-keeper puzzle, with the original 90 levels.
 Plain HTML5 Canvas + vanilla JavaScript - no framework, no build step, no dependencies.
 
-![Sokoban level 1](docs/screenshot.png)
+Play it in classic top-down 2D or in a 2.5D isometric view - same levels, same progress.
+
+| Classic 2D | 2.5D isometric |
+| --- | --- |
+| ![Sokoban level 1, 2D](docs/screenshot.png) | ![Sokoban level 1, 2.5D](docs/screenshot-iso.png) |
 
 ## Play
 
@@ -28,8 +32,16 @@ Your progress (solved levels and best move/push counts) is saved in the browser'
 | Restart level | `R` |
 | Next / previous level | `N` / `P` (or `]` / `[`) |
 | Level picker | `L` |
+| Switch 2D / 2.5D view | `V` |
 | Help | `?` |
 | Touch | Swipe in the direction you want to move |
+
+### 2D or 2.5D?
+
+The game asks which view you want when it starts (tick "don't ask again" to skip that in future;
+the help dialog can bring the question back). In the 2.5D view the map is turned 45 degrees, so
+`↑` walks up-right, `→` down-right, `↓` down-left and `←` up-left - the compass in the corner of
+the board shows the same thing. Click-to-walk and swipes work in both views.
 
 ## Rules
 
@@ -80,10 +92,12 @@ The level picker shows a set selector automatically when more than one set is pr
 ```
 index.html            page shell and modal dialogs
 css/style.css         styling (navy / teal palette)
-js/game.js            engine, renderer, input and UI
+js/game.js            engine, input, UI and the per-frame scene
+js/view2d.js          classic top-down renderer
+js/viewiso.js         2.5D isometric renderer
 js/levels.js          generated level data (90 levels)
 tools/fetch-levels.mjs  regenerates js/levels.js from xsokoban
-docs/screenshot.png
+docs/screenshot.png, docs/screenshot-iso.png
 ```
 
 ### How it works
@@ -98,10 +112,19 @@ docs/screenshot.png
 - **Rendering** - every tile (bricks, crates, goals, the keeper) is drawn procedurally on a
   `<canvas>`; the tile size adapts to the window and the backing store scales with
   `devicePixelRatio`, so it stays crisp on high-DPI screens.
-- **The keeper** - a top-down warehouse worker (hard hat, shoulders, gloves, boots) drawn in a
-  local frame and rotated to face the direction of travel. Each step runs a short animation:
-  walking alternates the feet and swings the arms; pushing extends the arms onto the crate,
-  leans the body in and plants the back foot. Undo plays the same animation in reverse.
+- **Views** - `game.js` builds an interpolated scene each frame (level, crates, the keeper's
+  fractional position, facing and pose) and hands it to the active view. A view is a small object
+  with `layout(cols, rows, availW, availH)`, `render(scene)` and `cellAt(px, py)`, so adding
+  another look is a matter of writing one more file.
+- **The keeper** - a warehouse worker (hard hat, shoulders, gloves, boots). Each step runs a short
+  animation: walking alternates the feet and swings the arms; pushing extends the arms onto the
+  crate, leans the body in and plants the back foot. Undo plays the same animation in reverse.
+  The 2D view draws them from directly above and rotates to the facing direction; the 2.5D view
+  draws them standing up, facing one of the four diagonal screen directions.
+- **2.5D view** - a 2:1 isometric projection. Walls are extruded brick prisms, crates are cubes,
+  and everything is drawn back-to-front by depth (x + y). Walls that would hide playable floor
+  behind them are drawn as low curbs ("cutaway"), so the whole board stays visible while the
+  back walls keep their full height.
 
 ## License
 

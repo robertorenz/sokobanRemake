@@ -15,12 +15,12 @@
 
   const STORAGE_PROGRESS = 'sokoban2.progress.v1';
   const STORAGE_CURRENT  = 'sokoban2.current.v1';
+  const STORAGE_VIEW     = 'sokoban2.view.v1';       // 'flat' | 'iso'
+  const STORAGE_ASK_VIEW = 'sokoban2.askView.v1';    // false once "don't ask again" is ticked
 
   const ANIM_MS   = 110;  // one walking step
   const PUSH_MS   = 150;  // one pushing step (a little heavier)
   const WALK_MS   = 110;  // per step when auto-walking
-  const MAX_TILE  = 72;
-  const MIN_TILE  = 12;
 
   const C = {
     outside:      '#0F1923',
@@ -46,6 +46,8 @@
     glove:        '#D4A373',
     gloveDark:    '#8B5E34',
     shoe:         '#1E293B',
+    face:         '#EAC4A3',
+    faceEdge:     '#B98B6C',
   };
 
   // ---------------------------------------------------------------------------
@@ -354,16 +356,35 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Rendering
+  // Rendering. The drawing itself lives in js/view2d.js (classic top-down) and
+  // js/viewiso.js (2.5D isometric); both expose layout / render / cellAt.
   // ---------------------------------------------------------------------------
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
   const boardWrap = document.getElementById('board-wrap');
 
-  let tile = 40;
-  let anim = null;     // { start, pFrom, pTo, bFrom, bTo }
+  const VIEWS = {
+    flat: window.SokobanViews.flat(ctx, C),
+    iso:  window.SokobanViews.iso(ctx, C),
+  };
+  const VIEW_LABELS = { flat: '2D', iso: '2.5D' };
+  let view = VIEWS.flat;
+  let anim = null;     // { start, dur, pFrom, pTo, bFrom, bTo, push, parity }
   let facing = DIRS.down;
   let rafPending = false;
+
+  function setView(id) {
+    if (!VIEWS[id]) return;
+    view = VIEWS[id];
+    saveJSON(STORAGE_VIEW, id);
+    document.body.dataset.view = id;
+    updateViewButton();
+    resize();
+  }
+
+  function toggleView() {
+    setView(view.id === 'flat' ? 'iso' : 'flat');
+  }
 
   function resize() {
     if (!game.level) return;
@@ -373,10 +394,8 @@
     const availW = Math.max(0, boardWrap.clientWidth - padX);
     const availH = Math.max(0, boardWrap.clientHeight - padY);
     const L = game.level;
-    tile = Math.floor(Math.min(availW / L.width, availH / L.height));
-    tile = Math.max(MIN_TILE, Math.min(MAX_TILE, tile));
+    const { cssW, cssH } = view.layout(L.width, L.height, availW, availH);
 
-    const cssW = tile * L.width, cssH = tile * L.height;
     const dpr = window.devicePixelRatio || 1;
     canvas.style.width = cssW + 'px';
     canvas.style.height = cssH + 'px';
@@ -420,269 +439,30 @@
 
   function easeOut(t) { return 1 - (1 - t) * (1 - t); }
 
+  /** Build the interpolated scene for this frame and hand it to the active view. */
   function render(t = 1) {
     const L = game.level;
     if (!L) return;
-    const w = tile * L.width, h = tile * L.height;
-    ctx.clearRect(0, 0, w, h);
-
     const e = easeOut(t);
-    const animBoxTo = anim ? anim.bTo : null;
 
-    // Static layer + boxes
-    for (let y = 0; y < L.height; y++) {
-      for (let x = 0; x < L.width; x++) {
-        const px = x * tile, py = y * tile;
-        if (L.walls[y][x]) {
-          drawWall(px, py);
-        } else if (L.floor[y][x]) {
-          drawFloor(px, py);
-          if (L.goals[y][x]) drawGoal(px, py);
-        }
-      }
-    }
-    for (let y = 0; y < L.height; y++) {
-      for (let x = 0; x < L.width; x++) {
-        if (!game.boxes[y][x]) continue;
-        if (animBoxTo && animBoxTo.x === x && animBoxTo.y === y) continue; // drawn animated below
-        drawBox(x * tile, y * tile, L.goals[y][x]);
-      }
-    }
-
-    // Animated box
-    if (anim && anim.bFrom && anim.bTo) {
-      const bx = anim.bFrom.x + (anim.bTo.x - anim.bFrom.x) * e;
-      const by = anim.bFrom.y + (anim.bTo.y - anim.bFrom.y) * e;
-      drawBox(bx * tile, by * tile, L.goals[anim.bTo.y][anim.bTo.x]);
-    }
-
-    // Player. `phase` rises and falls over one step (0 -> 1 -> 0) and drives
-    // the walk cycle and the push pose; it is 0 whenever the keeper is idle.
-    let ppx = game.player.x, ppy = game.player.y;
-    let pose = { phase: 0, parity: 0, push: false };
+    let player = { x: game.player.x, y: game.player.y };
+    let pose = { phase: 0, parity: 0, push: false };   // phase: 0 -> 1 -> 0 over a step
+    let movingBox = null;
     if (anim) {
-      ppx = anim.pFrom.x + (anim.pTo.x - anim.pFrom.x) * e;
-      ppy = anim.pFrom.y + (anim.pTo.y - anim.pFrom.y) * e;
+      player = {
+        x: anim.pFrom.x + (anim.pTo.x - anim.pFrom.x) * e,
+        y: anim.pFrom.y + (anim.pTo.y - anim.pFrom.y) * e,
+      };
       pose = { phase: Math.sin(Math.PI * t), parity: anim.parity, push: anim.push };
-    }
-    drawPlayer(ppx * tile, ppy * tile, pose);
-  }
-
-  function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  function drawFloor(x, y) {
-    ctx.fillStyle = C.floorEdge;
-    ctx.fillRect(x, y, tile, tile);
-    ctx.fillStyle = C.floor;
-    ctx.fillRect(x + 0.5, y + 0.5, tile - 1, tile - 1);
-  }
-
-  function drawGoal(x, y) {
-    const cx = x + tile / 2, cy = y + tile / 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, tile * 0.22, 0, Math.PI * 2);
-    ctx.lineWidth = Math.max(1.5, tile * 0.08);
-    ctx.strokeStyle = C.goal;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, tile * 0.07, 0, Math.PI * 2);
-    ctx.fillStyle = C.goalLight;
-    ctx.fill();
-  }
-
-  function drawWall(x, y) {
-    ctx.fillStyle = C.mortar;
-    ctx.fillRect(x, y, tile, tile);
-    const gap = Math.max(1, tile * 0.06);
-    const bh = tile / 2, bw = tile / 2;
-    const hl = Math.max(1, tile * 0.045);
-    for (let r = 0; r < 2; r++) {
-      const off = r === 0 ? 0 : bw / 2;
-      const by = y + r * bh;
-      for (let cx = -bw; cx < tile + bw; cx += bw) {
-        const bx = x + cx + off;
-        const x0 = Math.max(bx + gap / 2, x);
-        const x1 = Math.min(bx + bw - gap / 2, x + tile);
-        if (x1 <= x0) continue;
-        ctx.fillStyle = C.wall;
-        ctx.fillRect(x0, by + gap / 2, x1 - x0, bh - gap);
-        ctx.fillStyle = C.wallLight;
-        ctx.fillRect(x0, by + gap / 2, x1 - x0, hl);
+      if (anim.push) {
+        movingBox = {
+          x: anim.bFrom.x + (anim.bTo.x - anim.bFrom.x) * e,
+          y: anim.bFrom.y + (anim.bTo.y - anim.bFrom.y) * e,
+          to: anim.bTo,
+        };
       }
     }
-  }
-
-  function drawBox(x, y, onGoal) {
-    const inset = tile * 0.1;
-    const s = tile - inset * 2;
-    const r = Math.max(2, tile * 0.1);
-    const base = onGoal ? C.boxDone : C.box;
-    const dark = onGoal ? C.boxDoneDark : C.boxDark;
-    const light = onGoal ? C.boxDoneLight : C.boxLight;
-
-    // Shadow
-    ctx.fillStyle = 'rgba(15, 25, 35, 0.22)';
-    roundRect(x + inset + 1.5, y + inset + 2.5, s, s, r);
-    ctx.fill();
-
-    // Body
-    ctx.fillStyle = base;
-    roundRect(x + inset, y + inset, s, s, r);
-    ctx.fill();
-
-    // Top bevel
-    ctx.fillStyle = light;
-    ctx.globalAlpha = 0.55;
-    roundRect(x + inset, y + inset, s, s * 0.22, r);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // Border
-    ctx.lineWidth = Math.max(1.5, tile * 0.06);
-    ctx.strokeStyle = dark;
-    roundRect(x + inset, y + inset, s, s, r);
-    ctx.stroke();
-
-    // Cross bracing
-    const pad = s * 0.22;
-    ctx.lineWidth = Math.max(1.5, tile * 0.07);
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x + inset + pad, y + inset + pad);
-    ctx.lineTo(x + inset + s - pad, y + inset + s - pad);
-    ctx.moveTo(x + inset + s - pad, y + inset + pad);
-    ctx.lineTo(x + inset + pad, y + inset + s - pad);
-    ctx.stroke();
-  }
-
-  /**
-   * The warehouse keeper, seen from directly above: hard hat, shoulders, arms
-   * and boots. Drawn in a local frame facing "up" and rotated to the facing
-   * direction. `pose.phase` (0..1..0 over a step) drives the walk cycle
-   * (feet alternate, arms swing opposite) or, when `pose.push` is set, the
-   * push pose (arms extended, body leaning, back foot planted).
-   */
-  function drawPlayer(x, y, pose) {
-    const t = tile;
-    const TAU = Math.PI * 2;
-    const { phase, parity, push } = pose;
-    const swing = push ? 0 : phase * (parity ? 1 : -1);
-    const shove = push ? phase : 0;
-    const angle = Math.atan2(facing.dx, -facing.dy);
-
-    ctx.save();
-    ctx.translate(x + t / 2, y + t / 2);
-    ctx.rotate(angle);
-
-    // Ground shadow
-    ctx.beginPath();
-    ctx.ellipse(0, t * 0.05, t * 0.30, t * 0.25, 0, 0, TAU);
-    ctx.fillStyle = 'rgba(15, 25, 35, 0.28)';
-    ctx.fill();
-
-    // Lean into the crate while pushing; tiny bob while walking
-    ctx.translate(0, -shove * t * 0.06 - Math.abs(swing) * t * 0.015);
-
-    // Boots. Walking: alternate forward/back. Pushing: back foot digs in.
-    const footY = t * 0.07;
-    const stride = swing * t * 0.14;
-    let leftY = footY - stride, rightY = footY + stride;
-    if (push) { if (parity) leftY += shove * t * 0.13; else rightY += shove * t * 0.13; }
-    drawBoot(-t * 0.13, leftY, t);
-    drawBoot(t * 0.13, rightY, t);
-
-    // Shoulders / torso (an ellipse from above)
-    ctx.beginPath();
-    ctx.ellipse(0, t * 0.02, t * 0.30, t * 0.21, 0, 0, TAU);
-    ctx.fillStyle = C.shirt;
-    ctx.fill();
-    ctx.lineWidth = Math.max(1, t * 0.035);
-    ctx.strokeStyle = C.shirtDark;
-    ctx.stroke();
-    // Collar highlight at the front of the shoulders
-    ctx.beginPath();
-    ctx.ellipse(0, t * 0.02, t * 0.26, t * 0.17, 0, Math.PI * 1.15, Math.PI * 1.85);
-    ctx.lineWidth = Math.max(1, t * 0.04);
-    ctx.strokeStyle = C.shirtLight;
-    ctx.globalAlpha = 0.55;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    // Arms: from the shoulders forward to the hands. Hands swing opposite the
-    // feet while walking and reach out (and inward) when pushing.
-    const shoulderX = t * 0.25, shoulderY = 0;
-    const handBaseY = -t * 0.17;
-    const handX = t * (0.26 - shove * 0.09);
-    const leftHandY = handBaseY + swing * t * 0.09 - shove * t * 0.25;
-    const rightHandY = handBaseY - swing * t * 0.09 - shove * t * 0.25;
-    ctx.lineCap = 'round';
-    for (const [sx, hx, hy] of [[-shoulderX, -handX, leftHandY], [shoulderX, handX, rightHandY]]) {
-      ctx.beginPath();
-      ctx.moveTo(sx, shoulderY);
-      ctx.lineTo(hx, hy);
-      ctx.lineWidth = Math.max(2, t * 0.14);
-      ctx.strokeStyle = C.shirtDark;
-      ctx.stroke();
-      ctx.lineWidth = Math.max(1, t * 0.09);
-      ctx.strokeStyle = C.shirt;
-      ctx.stroke();
-      // Glove
-      ctx.beginPath();
-      ctx.arc(hx, hy, t * 0.075, 0, TAU);
-      ctx.fillStyle = C.glove;
-      ctx.fill();
-      ctx.lineWidth = Math.max(1, t * 0.025);
-      ctx.strokeStyle = C.gloveDark;
-      ctx.stroke();
-    }
-
-    // Hard hat (head from above), slightly forward of the torso centre
-    const headY = -t * 0.03, headR = t * 0.19;
-    ctx.beginPath();
-    ctx.arc(0, headY, headR, 0, TAU);
-    ctx.fillStyle = C.hat;
-    ctx.fill();
-    ctx.lineWidth = Math.max(1, t * 0.03);
-    ctx.strokeStyle = C.hatRim;
-    ctx.stroke();
-    // Brim sticking out at the front
-    ctx.fillStyle = C.hat;
-    ctx.strokeStyle = C.hatRim;
-    roundRect(-t * 0.15, headY - headR - t * 0.06, t * 0.30, t * 0.09, t * 0.03);
-    ctx.fill();
-    ctx.stroke();
-    // Ridge running front-to-back over the crown
-    ctx.beginPath();
-    ctx.moveTo(0, headY - headR * 0.8);
-    ctx.lineTo(0, headY + headR * 0.75);
-    ctx.lineWidth = Math.max(1.5, t * 0.05);
-    ctx.strokeStyle = C.hatRidge;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, headY - headR * 0.8);
-    ctx.lineTo(0, headY + headR * 0.75);
-    ctx.lineWidth = Math.max(0.75, t * 0.015);
-    ctx.strokeStyle = C.hatRim;
-    ctx.globalAlpha = 0.6;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    ctx.restore();
-  }
-
-  function drawBoot(x, y, t) {
-    ctx.beginPath();
-    ctx.ellipse(x, y, t * 0.085, t * 0.12, 0, 0, Math.PI * 2);
-    ctx.fillStyle = C.shoe;
-    ctx.fill();
+    view.render({ level: L, boxes: game.boxes, player, movingBox, facing, pose });
   }
 
   // ---------------------------------------------------------------------------
@@ -728,6 +508,16 @@
     el.prev.disabled = game.levelIndex === 0;
     el.next.disabled = game.levelIndex >= set.parsed.length - 1;
     document.title = `Sokoban - Level ${game.levelIndex + 1}`;
+  }
+
+  function updateViewButton() {
+    const b = $('btn-view');
+    b.textContent = 'View: ' + VIEW_LABELS[view.id];
+    b.title = `Switch to ${VIEW_LABELS[view.id === 'flat' ? 'iso' : 'flat']} view (V)`;
+  }
+
+  function showStartChooser() {
+    showModal($('modal-start'), $('pick-' + view.id));
   }
 
   let openModal = null;
@@ -890,6 +680,7 @@
       case 'n': case 'N': case ']': e.preventDefault(); nextLevel(); break;
       case 'p': case 'P': case '[': e.preventDefault(); prevLevel(); break;
       case 'l': case 'L': e.preventDefault(); showLevels(); break;
+      case 'v': case 'V': e.preventDefault(); toggleView(); break;
       case '?': case 'F1': e.preventDefault(); showModal(el.modalHelp); break;
       default: break;
     }
@@ -909,9 +700,8 @@
     const dist = Math.hypot(dx, dy);
     if (dist < 14) {
       const rect = canvas.getBoundingClientRect();
-      const cx = Math.floor((e.clientX - rect.left) / tile);
-      const cy = Math.floor((e.clientY - rect.top) / tile);
-      if (!isWall(cx, cy)) walkTo({ x: cx, y: cy });
+      const cell = view.cellAt(e.clientX - rect.left, e.clientY - rect.top);
+      if (!isWall(cell.x, cell.y)) walkTo(cell);
       return;
     }
     cancelWalk();
@@ -928,6 +718,18 @@
   $('btn-next').addEventListener('click', nextLevel);
   $('btn-levels').addEventListener('click', showLevels);
   $('btn-help').addEventListener('click', () => showModal(el.modalHelp));
+  $('btn-view').addEventListener('click', toggleView);
+  $('btn-ask-view').addEventListener('click', () => {
+    saveJSON(STORAGE_ASK_VIEW, true);
+    closeModal();
+    showStartChooser();
+  });
+  document.querySelectorAll('[data-pick-view]').forEach(b => b.addEventListener('click', () => {
+    const remember = $('start-remember').checked;
+    saveJSON(STORAGE_ASK_VIEW, !remember);
+    closeModal();
+    setView(b.dataset.pickView);
+  }));
   $('btn-win-next').addEventListener('click', () => { closeModal(); nextLevel(); });
   $('btn-win-replay').addEventListener('click', () => { closeModal(); restart(); });
   el.setSelect.addEventListener('change', () => buildLevelGrid(Number(el.setSelect.value)));
@@ -974,8 +776,13 @@
       const idx = SETS.findIndex(s => s.id === cur.set);
       if (idx >= 0 && SETS[idx].parsed[cur.level]) { si = idx; li = cur.level; }
     }
+    const savedView = loadJSON(STORAGE_VIEW, 'flat');
+    view = VIEWS[savedView] || VIEWS.flat;
+    document.body.dataset.view = view.id;
+    updateViewButton();
     loadLevel(si, li);
-    canvas.focus({ preventScroll: true });
+    if (loadJSON(STORAGE_ASK_VIEW, true) !== false) showStartChooser();
+    else canvas.focus({ preventScroll: true });
   }
 
   boot();
