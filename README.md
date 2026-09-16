@@ -96,6 +96,10 @@ docs/screenshot.png
 - **Rendering** - every tile (bricks, crates, goals, the keeper) is drawn procedurally on a
   `<canvas>`; the tile size adapts to the window and the backing store scales with
   `devicePixelRatio`, so it stays crisp on high-DPI screens.
+- **The keeper** - a top-down warehouse worker (hard hat, shoulders, gloves, boots) drawn in a
+  local frame and rotated to face the direction of travel. Each step runs a short animation:
+  walking alternates the feet and swings the arms; pushing extends the arms onto the crate,
+  leans the body in and plants the back foot. Undo plays the same animation in reverse.
 
 ## License
 

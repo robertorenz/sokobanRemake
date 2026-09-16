@@ -16,8 +16,9 @@
   const STORAGE_PROGRESS = 'sokoban2.progress.v1';
   const STORAGE_CURRENT  = 'sokoban2.current.v1';
 
-  const ANIM_MS   = 85;   // one step
-  const WALK_MS   = 70;   // per step when auto-walking
+  const ANIM_MS   = 110;  // one walking step
+  const PUSH_MS   = 150;  // one pushing step (a little heavier)
+  const WALK_MS   = 110;  // per step when auto-walking
   const MAX_TILE  = 72;
   const MIN_TILE  = 12;
 
@@ -36,10 +37,15 @@
     boxDone:      '#059669',
     boxDoneDark:  '#065F46',
     boxDoneLight: '#34D399',
-    player:       '#0E7490',
-    playerLight:  '#22D3EE',
-    playerDark:   '#164E63',
-    playerFace:   '#F8FAFC',
+    shirt:        '#0E7490',
+    shirtDark:    '#164E63',
+    shirtLight:   '#22D3EE',
+    hat:          '#F1F5F9',
+    hatRim:       '#94A3B8',
+    hatRidge:     '#FFFFFF',
+    glove:        '#D4A373',
+    gloveDark:    '#8B5E34',
+    shoe:         '#1E293B',
   };
 
   // ---------------------------------------------------------------------------
@@ -274,7 +280,7 @@
       progress[set.id][game.levelIndex] = { moves: game.moves, pushes: game.pushes };
       saveJSON(STORAGE_PROGRESS, progress);
     }
-    setTimeout(() => showWin(prev, isRecord), ANIM_MS + 160);
+    setTimeout(() => showWin(prev, isRecord), PUSH_MS + 160);
   }
 
   // ---------------------------------------------------------------------------
@@ -380,8 +386,18 @@
     requestRender();
   }
 
+  let stepParity = 0;   // alternates each step so the feet take turns
+
   function startAnim(pFrom, pTo, bFrom, bTo) {
-    anim = { start: performance.now(), pFrom, pTo: { ...pTo }, bFrom, bTo };
+    stepParity ^= 1;
+    const push = !!(bFrom && bTo);
+    anim = {
+      start: performance.now(),
+      dur: push ? PUSH_MS : ANIM_MS,
+      pFrom, pTo: { ...pTo }, bFrom, bTo,
+      push,
+      parity: stepParity,
+    };
     requestRender();
   }
 
@@ -395,7 +411,7 @@
     rafPending = false;
     let t = 1;
     if (anim) {
-      t = Math.min(1, (now - anim.start) / ANIM_MS);
+      t = Math.min(1, (now - anim.start) / anim.dur);
       if (t >= 1) anim = null;
     }
     render(t);
@@ -440,13 +456,16 @@
       drawBox(bx * tile, by * tile, L.goals[anim.bTo.y][anim.bTo.x]);
     }
 
-    // Player
+    // Player. `phase` rises and falls over one step (0 -> 1 -> 0) and drives
+    // the walk cycle and the push pose; it is 0 whenever the keeper is idle.
     let ppx = game.player.x, ppy = game.player.y;
+    let pose = { phase: 0, parity: 0, push: false };
     if (anim) {
       ppx = anim.pFrom.x + (anim.pTo.x - anim.pFrom.x) * e;
       ppy = anim.pFrom.y + (anim.pTo.y - anim.pFrom.y) * e;
+      pose = { phase: Math.sin(Math.PI * t), parity: anim.parity, push: anim.push };
     }
-    drawPlayer(ppx * tile, ppy * tile);
+    drawPlayer(ppx * tile, ppy * tile, pose);
   }
 
   function roundRect(x, y, w, h, r) {
@@ -544,49 +563,126 @@
     ctx.stroke();
   }
 
-  function drawPlayer(x, y) {
-    const cx = x + tile / 2, cy = y + tile / 2;
-    const R = tile * 0.34;
+  /**
+   * The warehouse keeper, seen from directly above: hard hat, shoulders, arms
+   * and boots. Drawn in a local frame facing "up" and rotated to the facing
+   * direction. `pose.phase` (0..1..0 over a step) drives the walk cycle
+   * (feet alternate, arms swing opposite) or, when `pose.push` is set, the
+   * push pose (arms extended, body leaning, back foot planted).
+   */
+  function drawPlayer(x, y, pose) {
+    const t = tile;
+    const TAU = Math.PI * 2;
+    const { phase, parity, push } = pose;
+    const swing = push ? 0 : phase * (parity ? 1 : -1);
+    const shove = push ? phase : 0;
+    const angle = Math.atan2(facing.dx, -facing.dy);
 
-    // Shadow
+    ctx.save();
+    ctx.translate(x + t / 2, y + t / 2);
+    ctx.rotate(angle);
+
+    // Ground shadow
     ctx.beginPath();
-    ctx.ellipse(cx, cy + R * 0.85, R * 0.9, R * 0.35, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(15, 25, 35, 0.25)';
+    ctx.ellipse(0, t * 0.05, t * 0.30, t * 0.25, 0, 0, TAU);
+    ctx.fillStyle = 'rgba(15, 25, 35, 0.28)';
     ctx.fill();
 
-    // Body
+    // Lean into the crate while pushing; tiny bob while walking
+    ctx.translate(0, -shove * t * 0.06 - Math.abs(swing) * t * 0.015);
+
+    // Boots. Walking: alternate forward/back. Pushing: back foot digs in.
+    const footY = t * 0.07;
+    const stride = swing * t * 0.14;
+    let leftY = footY - stride, rightY = footY + stride;
+    if (push) { if (parity) leftY += shove * t * 0.13; else rightY += shove * t * 0.13; }
+    drawBoot(-t * 0.13, leftY, t);
+    drawBoot(t * 0.13, rightY, t);
+
+    // Shoulders / torso (an ellipse from above)
     ctx.beginPath();
-    ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.fillStyle = C.player;
+    ctx.ellipse(0, t * 0.02, t * 0.30, t * 0.21, 0, 0, TAU);
+    ctx.fillStyle = C.shirt;
     ctx.fill();
-    ctx.lineWidth = Math.max(1.5, tile * 0.05);
-    ctx.strokeStyle = C.playerDark;
+    ctx.lineWidth = Math.max(1, t * 0.035);
+    ctx.strokeStyle = C.shirtDark;
     ctx.stroke();
-
-    // Cap (top highlight)
+    // Collar highlight at the front of the shoulders
     ctx.beginPath();
-    ctx.arc(cx, cy, R * 0.92, Math.PI * 1.08, Math.PI * 1.92);
-    ctx.lineWidth = Math.max(1.5, tile * 0.07);
-    ctx.strokeStyle = C.playerLight;
+    ctx.ellipse(0, t * 0.02, t * 0.26, t * 0.17, 0, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.lineWidth = Math.max(1, t * 0.04);
+    ctx.strokeStyle = C.shirtLight;
+    ctx.globalAlpha = 0.55;
     ctx.stroke();
+    ctx.globalAlpha = 1;
 
-    // Eyes, offset toward the facing direction
-    const ox = facing.dx * R * 0.28, oy = facing.dy * R * 0.28;
-    const eyeR = Math.max(1.2, tile * 0.075);
-    const sep = R * 0.38;
-    const horizontal = facing.dy === 0;
-    const e1 = horizontal ? { x: cx + ox, y: cy + oy - sep } : { x: cx + ox - sep, y: cy + oy };
-    const e2 = horizontal ? { x: cx + ox, y: cy + oy + sep } : { x: cx + ox + sep, y: cy + oy };
-    for (const e of [e1, e2]) {
+    // Arms: from the shoulders forward to the hands. Hands swing opposite the
+    // feet while walking and reach out (and inward) when pushing.
+    const shoulderX = t * 0.25, shoulderY = 0;
+    const handBaseY = -t * 0.17;
+    const handX = t * (0.26 - shove * 0.09);
+    const leftHandY = handBaseY + swing * t * 0.09 - shove * t * 0.25;
+    const rightHandY = handBaseY - swing * t * 0.09 - shove * t * 0.25;
+    ctx.lineCap = 'round';
+    for (const [sx, hx, hy] of [[-shoulderX, -handX, leftHandY], [shoulderX, handX, rightHandY]]) {
       ctx.beginPath();
-      ctx.arc(e.x, e.y, eyeR * 1.6, 0, Math.PI * 2);
-      ctx.fillStyle = C.playerFace;
-      ctx.fill();
+      ctx.moveTo(sx, shoulderY);
+      ctx.lineTo(hx, hy);
+      ctx.lineWidth = Math.max(2, t * 0.14);
+      ctx.strokeStyle = C.shirtDark;
+      ctx.stroke();
+      ctx.lineWidth = Math.max(1, t * 0.09);
+      ctx.strokeStyle = C.shirt;
+      ctx.stroke();
+      // Glove
       ctx.beginPath();
-      ctx.arc(e.x + facing.dx * eyeR * 0.6, e.y + facing.dy * eyeR * 0.6, eyeR * 0.85, 0, Math.PI * 2);
-      ctx.fillStyle = C.playerDark;
+      ctx.arc(hx, hy, t * 0.075, 0, TAU);
+      ctx.fillStyle = C.glove;
       ctx.fill();
+      ctx.lineWidth = Math.max(1, t * 0.025);
+      ctx.strokeStyle = C.gloveDark;
+      ctx.stroke();
     }
+
+    // Hard hat (head from above), slightly forward of the torso centre
+    const headY = -t * 0.03, headR = t * 0.19;
+    ctx.beginPath();
+    ctx.arc(0, headY, headR, 0, TAU);
+    ctx.fillStyle = C.hat;
+    ctx.fill();
+    ctx.lineWidth = Math.max(1, t * 0.03);
+    ctx.strokeStyle = C.hatRim;
+    ctx.stroke();
+    // Brim sticking out at the front
+    ctx.fillStyle = C.hat;
+    ctx.strokeStyle = C.hatRim;
+    roundRect(-t * 0.15, headY - headR - t * 0.06, t * 0.30, t * 0.09, t * 0.03);
+    ctx.fill();
+    ctx.stroke();
+    // Ridge running front-to-back over the crown
+    ctx.beginPath();
+    ctx.moveTo(0, headY - headR * 0.8);
+    ctx.lineTo(0, headY + headR * 0.75);
+    ctx.lineWidth = Math.max(1.5, t * 0.05);
+    ctx.strokeStyle = C.hatRidge;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, headY - headR * 0.8);
+    ctx.lineTo(0, headY + headR * 0.75);
+    ctx.lineWidth = Math.max(0.75, t * 0.015);
+    ctx.strokeStyle = C.hatRim;
+    ctx.globalAlpha = 0.6;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+  }
+
+  function drawBoot(x, y, t) {
+    ctx.beginPath();
+    ctx.ellipse(x, y, t * 0.085, t * 0.12, 0, 0, Math.PI * 2);
+    ctx.fillStyle = C.shoe;
+    ctx.fill();
   }
 
   // ---------------------------------------------------------------------------
